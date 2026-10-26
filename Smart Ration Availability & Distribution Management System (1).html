@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Ration Availability & Distribution Management System</title>
+<style>
+:root{--bg:#f3f7f2;--card:#fff;--text:#1d2b20;--muted:#5d6b60;--brand:#2e7d32;--line:#dbe5da;--ok:#2e7d32;--okbg:#e3f4e4;--low:#9a6700;--lowbg:#fff1cc;--out:#b3261e;--outbg:#fde3e1}
+@media (prefers-color-scheme:dark){:root{--bg:#121a14;--card:#1b261e;--text:#e8f1e9;--muted:#9fb0a2;--brand:#66bb6a;--line:#2d3b30;--ok:#8be08f;--okbg:#1f3a22;--low:#ffd166;--lowbg:#3d3213;--out:#ff9b94;--outbg:#43201e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5}
+header{background:var(--brand);color:#fff;padding:20px 16px;text-align:center}
+header h1{margin:0;font-size:1.3rem}
+header p{margin:6px 0 0}
+main{max-width:760px;margin:0 auto;padding:16px}
+input,button{font:inherit}
+input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text)}
+button{padding:11px 16px;border:0;border-radius:10px;background:var(--brand);color:#fff;font-weight:600;cursor:pointer;white-space:nowrap}
+button.alt{background:transparent;color:var(--brand);border:1px solid var(--brand)}
+.bar{display:flex;gap:10px;margin-bottom:14px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1}
+.list{display:grid;gap:10px}
+.item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.item h3{margin:0;font-size:1.05rem}
+.item small{color:var(--muted)}
+.badge{padding:4px 12px;border-radius:99px;font-size:.85rem;font-weight:700}
+.Available{background:var(--okbg);color:var(--ok)}
+.Low{background:var(--lowbg);color:var(--low)}
+.Out{background:var(--outbg);color:var(--out)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.panel h2{margin:0 0 12px;font-size:1.1rem}
+.row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.row label{flex:1;font-weight:600}
+.row input{width:110px}
+.msg{color:var(--out);margin:8px 0;min-height:1.2em}
+.ok{color:var(--ok)}
+.hidden{display:none}
+.rm{padding:6px 10px;background:var(--out)}
+.row input.grow{flex:1;min-width:130px;width:auto}
+.row h3{margin:8px 0 0;font-size:1rem;width:100%}
+footer{text-align:center;color:var(--muted);font-size:.85rem;padding:16px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Smart Ration Availability &amp; Distribution Management System</h1>
+  <p>Sri Lakshmi Fair Price Shop (Sample)</p>
+</header>
+<main>
+  <!-- LOGIN SCREEN -->
+  <div class="panel" id="loginScreen">
+    <h2>Login</h2>
+    <div class="tabs">
+      <button id="tabUser">User</button>
+      <button class="alt" id="tabAdmin">Admin</button>
+    </div>
+    <input type="password" id="pw" placeholder="Enter user password" autocomplete="off">
+    <p class="msg" id="loginMsg"></p>
+    <button id="loginGo">Login</button>
+  </div>
+
+  <!-- APP SCREEN -->
+  <div class="hidden" id="appScreen">
+    <div class="bar">
+      <input type="text" id="search" placeholder="Search ration items..." aria-label="Search items">
+      <button class="alt" id="logoutBtn">Logout</button>
+    </div>
+    <p id="who" class="ok"></p>
+    <div class="panel" id="hoursBox"></div>
+
+    <div class="panel hidden" id="adminPanel">
+      <h2>Admin Panel - Update Stock</h2>
+      <div id="adminRows"></div>
+      <div class="row"><h3>Add New Item</h3>
+        <input class="grow" type="text" id="newName" placeholder="Item name">
+        <input type="number" min="0" id="newQty" placeholder="Qty">
+        <input type="text" id="newUnit" placeholder="Unit" value="kg">
+        <button id="addBtn">Add</button></div>
+      <div class="row"><h3>Shop Timing</h3>
+        <label for="openT">Opening</label><input type="time" id="openT">
+        <label for="closeT">Closing</label><input type="time" id="closeT"></div>
+      <div class="row"><button id="saveBtn">Save Stock</button><button class="alt" id="resetBtn">Reset Defaults</button></div>
+      <p class="msg ok" id="adminMsg"></p>
+    </div>
+
+    <div class="list" id="list"></div>
+    <p class="msg" id="empty"></p>
+  </div>
+</main>
+<footer>College Software Engineering Project<br>Demo passwords: User = user123 · Admin = admin123</footer>
+
+<script>
+(function(){
+var DEFAULTS=[{name:"Rice",qty:120,unit:"kg"},{name:"Sugar",qty:35,unit:"kg"},{name:"Wheat",qty:60,unit:"kg"},{name:"Toor Dal",qty:18,unit:"kg"},{name:"Kerosene",qty:0,unit:"litres"}];
+var KEY="rationStock";
+var PASSWORDS={user:"user123",admin:"admin123"};
+var role="user";      // role chosen on the login tabs
+var loggedIn=null;    // "user" or "admin" after login
+var items=load();
+var HKEY="rationHours";
+var hours=loadHours();
+function loadHours(){
+  try{var s=localStorage.getItem(HKEY);if(s){var h=JSON.parse(s);if(h&&h.open&&h.close)return h;}}catch(e){}
+  return {open:"09:00",close:"17:00"};
+}
+function fmt(t){var p=t.split(":"),h=+p[0],m=p[1],ap=h>=12?"PM":"AM";h=h%12||12;return h+":"+m+" "+ap;}
+function mins(t){var p=t.split(":");return +p[0]*60+ +p[1];}
+function renderHours(){
+  var n=new Date(),now=n.getHours()*60+n.getMinutes(),o=mins(hours.open),c=mins(hours.close);
+  var isOpen=o<=c?(now>=o&&now<c):(now>=o||now<c);
+  $("hoursBox").textContent="Shop Timing: "+fmt(hours.open)+" - "+fmt(hours.close)+" ("+(isOpen?"Open now":"Closed now")+")";
+}
+function readQty(){
+  items.forEach(function(i,idx){
+    var el=$("q"+idx);if(!el)return;
+    var v=parseInt(el.value,10);
+    i.qty=isNaN(v)||v<0?0:v;
+  });
+}
+function $(id){return document.getElementById(id);}
+
+function load(){
+  try{var s=localStorage.getItem(KEY);if(s){var a=JSON.parse(s);if(Array.isArray(a)&&a.length)return a;}}catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULTS));
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(items));}catch(e){}}
+function getStatus(q){return q>20?["Available","Available"]:q>=1?["Low","Low Stock"]:["Out","Out of Stock"];}
+
+function render(){
+  var term=$("search").value.trim().toLowerCase();
+  var list=$("list");list.innerHTML="";
+  var shown=items.filter(function(i){return i.name.toLowerCase().indexOf(term)!==-1;});
+  shown.forEach(function(i){
+    var s=getStatus(i.qty);
+    var d=document.createElement("div");d.className="item";
+    d.innerHTML='<div><h3></h3><small></small></div><span class="badge '+s[0]+'">'+s[1]+'</span>';
+    d.querySelector("h3").textContent=i.name;
+    d.querySelector("small").textContent=i.qty+" "+i.unit;
+    list.appendChild(d);
+  });
+  $("empty").textContent=shown.length?"":"No items found.";
+  renderHours();
+}
+
+function buildAdmin(){
+  var box=$("adminRows");box.innerHTML="";
+  items.forEach(function(i,idx){
+    var r=document.createElement("div");r.className="row";
+    r.innerHTML='<label for="q'+idx+'"></label><input type="number" min="0" id="q'+idx+'"><span></span><button class="rm">Remove</button>';
+    r.querySelector("span").textContent=i.unit;
+    r.querySelector("label").textContent=i.name;
+    r.querySelector("input").value=i.qty;
+    r.querySelector(".rm").onclick=function(){
+      if(loggedIn!=="admin")return;
+      readQty();items.splice(idx,1);save();buildAdmin();render();
+      $("adminMsg").textContent="Item removed.";
+    };
+    box.appendChild(r);
+  });
+  $("openT").value=hours.open;$("closeT").value=hours.close;
+}
+
+function pickRole(r){
+  role=r;
+  $("tabUser").className=r==="user"?"":"alt";
+  $("tabAdmin").className=r==="admin"?"":"alt";
+  $("pw").placeholder=r==="admin"?"Enter admin password":"Enter user password";
+  $("pw").value="";$("loginMsg").textContent="";
+}
+$("tabUser").onclick=function(){pickRole("user");};
+$("tabAdmin").onclick=function(){pickRole("admin");};
+
+function login(){
+  if($("pw").value!==PASSWORDS[role]){$("loginMsg").textContent="Incorrect password. Try again.";return;}
+  loggedIn=role;
+  $("pw").value="";$("loginMsg").textContent="";
+  $("loginScreen").classList.add("hidden");
+  $("appScreen").classList.remove("hidden");
+  $("who").textContent="Logged in as: "+(role==="admin"?"Admin":"User");
+  if(role==="admin"){buildAdmin();$("adminPanel").classList.remove("hidden");}
+  else{$("adminPanel").classList.add("hidden");}
+  $("adminMsg").textContent="";
+  render();
+}
+$("loginGo").onclick=login;
+$("pw").addEventListener("keydown",function(e){if(e.key==="Enter")login();});
+
+$("logoutBtn").onclick=function(){
+  loggedIn=null;
+  $("appScreen").classList.add("hidden");
+  $("adminPanel").classList.add("hidden");
+  $("loginScreen").classList.remove("hidden");
+  $("search").value="";
+  pickRole("user");
+};
+$("search").addEventListener("input",render);
+
+$("saveBtn").onclick=function(){
+  if(loggedIn!=="admin")return;   // only admin can change stock
+  readQty();
+  if($("openT").value&&$("closeT").value){hours={open:$("openT").value,close:$("closeT").value};
+    try{localStorage.setItem(HKEY,JSON.stringify(hours));}catch(e){}}
+  save();render();
+  $("adminMsg").textContent="Stock updated successfully.";
+};
+$("resetBtn").onclick=function(){
+  if(loggedIn!=="admin")return;
+  items=JSON.parse(JSON.stringify(DEFAULTS));save();
+  hours={open:"09:00",close:"17:00"};
+  try{localStorage.setItem(HKEY,JSON.stringify(hours));}catch(e){}
+  buildAdmin();render();
+  $("adminMsg").textContent="Stock reset to defaults.";
+};
+$("addBtn").onclick=function(){
+  if(loggedIn!=="admin")return;
+  var nm=$("newName").value.trim(),q=parseInt($("newQty").value,10),u=$("newUnit").value.trim()||"kg";
+  if(!nm){$("adminMsg").textContent="Enter an item name.";return;}
+  if(items.some(function(i){return i.name.toLowerCase()===nm.toLowerCase();})){$("adminMsg").textContent="That item already exists.";return;}
+  readQty();
+  items.push({name:nm,qty:isNaN(q)||q<0?0:q,unit:u});
+  save();buildAdmin();render();
+  $("newName").value="";$("newQty").value="";
+  $("adminMsg").textContent="Item added.";
+};
+pickRole("user");
+})();
+</script>
+</body>
+</html>
